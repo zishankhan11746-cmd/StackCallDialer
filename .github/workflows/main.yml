@@ -14,15 +14,63 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Gradle 8.7
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.7"
 
-      - name: Show repository
+      - name: Show files
+        run: |
+          echo "Repository files:"
+          find . -maxdepth 3 -type f -print
+
+      - name: Find ZIP
+        run: |
+          ZIP_FILE=$(find . -type f -name "StackCallDialer_GitHubReady.zip" -print -quit)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: StackCallDialer_GitHubReady.zip not found"
+            exit 1
+          fi
+
+          echo "Found: $ZIP_FILE"
+          echo "ZIP_FILE=$ZIP_FILE" >> "$GITHUB_ENV"
+
+      - name: Extract ZIP
+        run: |
+          rm -rf project
+          mkdir project
+          unzip -q "$ZIP_FILE" -d project
+          echo "Extracted:"
+          find project -maxdepth 5 -type f -print
+
+      - name: Find Android project
+        run: |
+          SETTINGS=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) -print -quit)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found"
+            find project -type f -print
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Project: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle --no-daemon clean assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: StackCallDialer-debug-apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
